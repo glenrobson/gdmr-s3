@@ -1,7 +1,7 @@
 # s3 IIIF Utils
 s3 Sync and manifest generation program.
 
-To use create the following structure in the storage directory:
+To use create the following structure in this project directory:
 
  * storage
    * gdmrdgital
