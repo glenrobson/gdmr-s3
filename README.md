@@ -17,6 +17,7 @@ where:
 The `aws-credentials.ini` contains the following:
 
 ```
+[credentials]
 aws_access_key_id=xxxx
 aws_secret_access_key=xxx
 region_name=eu-west-2
