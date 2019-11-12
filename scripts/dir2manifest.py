@@ -4,6 +4,7 @@ import configargparse
 import sys
 import os
 import json
+import csv
 from os.path import basename
 from os.path import dirname
 from os import path
@@ -25,6 +26,24 @@ def getjson(url):
     response = urlopen(url)
     data = response.read().decode("utf-8")
     return json.loads(data)
+
+def imageResource(imageBaseURI, imgjson=None, label=None):
+    if imgjson is None:
+        imgjson = getjson(imageBaseURI + '/info.json')
+    resource = {}
+    resource["@id"] = imageBaseURI + '/full/511,/0/default.jpg'
+    resource["@type"] = "dctypes:Image"
+    if label:
+        resource["label"] = label
+    resource["format"] = "image/jpeg"
+    resource["height"] = imgjson["height"]
+    resource["width"] = imgjson["width"]
+    resource["service"] = {
+        "@context":  "http://iiif.io/api/image/2/context.json",
+        "@id": imageBaseURI,
+        "profile": "http://iiif.io/api/image/2/level2.json"
+    }
+    return resource
 
 if __name__ == "__main__":
 
@@ -87,27 +106,57 @@ if __name__ == "__main__":
     sequence["@type"] = "sc:Sequence"
     canvases = []
     sequence["canvases"] = canvases
+    canvasLabels = {}
     if options.image_list:
-        with open(options.image_list[0], 'r') as imagelist:
+        # turn this into a csv:
+        # filename, [canvas label]
+        with open(options.image_list[0], 'r') as csvfile:
+            imagelist = csv.reader(csvfile)
             images = []
-            for line in imagelist:
-                filename = path.join(imagedir,line.strip())
+            i = 0
+            for (fileid, canvas_label) in imagelist:
+               # print ("Line {},{}".format(fileid,canvas_label))
+                filename = path.join(imagedir, fileid.replace(' - ','').strip())
                 if path.exists(filename):
-                    images.append(line.strip())
+                    # need to re-work layers
+                    #if line.startswith(' - '):
+                    #    if i == 0:
+                    #        print("If using layers the first line can't start with -")
+                    #        exit
+                    #    if isinstance(images[i-1], str):
+                    #        defaultFilename = images[i-1]
+                    #        layers = [ defaultFilename ]
+                    #        images[i-1] = layers
+                    #    images[i-1].append(line.replace(' - ','').strip())
+                    #else:
+                        # simple list
+                    images.append(fileid)
+                        #i += 1
+                    canvasLabels[fileid[:-4]] = canvas_label    
                 else:
                     print ('File missing %s' % filename)
 
     else:
         images = os.listdir(imagedir)
-
     for image in images:
+        if not image.endswith('.jp2'):
+            print("Skipping %s" % image)
+            continue
         canvas = {}
-        image_id = image[:-4]
+        if isinstance(image,list):
+            image_id = image[0][:-4]
+            imagename = image[0]
+        else:
+            image_id = image[:-4]
+            imagename = image
         canvases.append(canvas)
         canvas["@id"] = baseurl + "canvas/" + image_id
         canvas["@type"] = "sc:Canvas"
-        canvas["label"] = image_id
-        imageBaseURI=image_root + image_prefix.replace('/', encodeslash) + image
+        if image_id in canvasLabels:
+            canvas["label"] = canvasLabels[image_id]
+        else: 
+            canvas["label"] = image_id
+        imageBaseURI=image_root + image_prefix.replace('/', encodeslash) + imagename
         imgjson = getjson(imageBaseURI + '/info.json')
         # need to get height and width
         canvas["height"] = imgjson["height"]
@@ -120,17 +169,25 @@ if __name__ == "__main__":
         imagejson["on"] =  canvas["@id"]
 
         resource = {}
+        if isinstance(image,(list)):
+            resource["@type"] = "oa:Choice"
+            # layered canvases
+            default = {}
+            default = imageResource(imageBaseURI, imgjson=imgjson, label=imagename)
+            resource["default"] = default
+
+            layers = []
+            for layer in image[1:]:
+                imageBaseURI=image_root + image_prefix.replace('/', encodeslash) + layer
+                layerImage = imageResource(imageBaseURI, label=layer)
+                layers.append(layerImage)
+
+            resource["item"] = layers
+        else:
+            # Simple non-layered canvas
+            resource = imageResource(imageBaseURI, imgjson=imgjson)
         imagejson ["resource"] = resource
-        resource["@id"] = imageBaseURI + '/full/511,/0/default.jpg'
-        resource["@type"] = "dctypes:Image"
-        resource["format"] = "image/jpeg"
-        resource["height"] = imgjson["height"]
-        resource["width"] = imgjson["width"]
-        resource["service"] = {
-            "@context":  "http://iiif.io/api/image/2/context.json",
-            "@id": imageBaseURI,
-            "profile": "http://iiif.io/api/image/2/level2.json"
-        }
+
 
     with open(manifest_filename, 'w') as f:
         json.dump(manifest, f, indent=4, sort_keys=False)
