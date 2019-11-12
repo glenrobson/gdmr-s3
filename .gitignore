@@ -1,2 +1,5 @@
 storage/gdmrdigital/*
+__pycache__
 .aws-credentials.ini
+*.swp
+.DS_store
