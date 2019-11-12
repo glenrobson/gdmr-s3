@@ -142,7 +142,7 @@ if __name__ == "__main__":
     else:
         images = os.listdir(imagedir)
     for image in images:
-        if not image.endswith('.jp2'):
+        if not image.endswith('.jp2') and not image.endswith('tif'):
             print("Skipping %s" % image)
             continue
         canvas = {}
