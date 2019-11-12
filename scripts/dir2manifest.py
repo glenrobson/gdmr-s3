@@ -66,7 +66,10 @@ if __name__ == "__main__":
     print ("[imagedir %s, manifest_filename %s]" %(imagedir,manifest_filename))
 
     image_root = addSlash(options.baseurl_image[0])
-    image_prefix = addSlash(imagedir.split(addSlash(options.baseloc_image[0]))[1])
+    if len(imagedir.split(addSlash(options.baseloc_image[0]))) > 1:
+        image_prefix = addSlash(imagedir.split(addSlash(options.baseloc_image[0]))[1])
+    else: 
+        image_prefix = ''
     encodeslash='%2F'
 
     # Get the last part of the file path as this will be the web accessible part
