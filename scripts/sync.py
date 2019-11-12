@@ -5,6 +5,7 @@ import sys
 import boto3
 import configparser
 import configargparse
+from configparser import NoSectionError, NoOptionError
 import datetime
 import json
 import magic
@@ -68,8 +69,8 @@ if __name__ == "__main__":
     parser = configargparse.ArgParser(description='Sync local files with s3.', default_config_files=['config/sync.config'])
     parser.add('--root-dir',nargs=1,  help='Location to sync')
     parser.add('--check-mime',nargs=1, help='Check mime matches local')
-    parser.add('--wait-for-cache',nargs=1, help='Check mime matches local')
-    parser.add('--in-development',nargs='*', help='Supply files that should not be cached')
+    parser.add('--wait-for-cache',nargs=1, help='Check mime matches local', default='false')
+    parser.add('--in-development',nargs='*', help='Supply files that should not be cached', default=[])
     # test program with out making changes
     simulate=False
     options = parser.parse_args()
@@ -95,7 +96,6 @@ if __name__ == "__main__":
         localcontents = {}
         # Cloudfront details
         changes = []
-        distributionId = config.get('cloud_front', 'distribution_id')
         for bucket in os.listdir(account):
             if os.path.isdir(os.path.join(account, bucket)):
                 print ('Syncing with bucket: "%s"' % bucket)
@@ -158,12 +158,18 @@ if __name__ == "__main__":
                     }, 
                     'CallerReference': 'S3-sync-{}'.format(str(datetime.datetime.now()).replace(' ','_')) 
                 }
-                response = cloudfront.create_invalidation(DistributionId=distributionId, InvalidationBatch=batch)
-                invalidationId = response['Invalidation']['Id']
-                if waitForCache:
-                    print ('Waiting for cloudfront invalidation')
-                    waitForCloudfront.waitForInvalidation(cloudfront, distributionId, invalidationId)
-                else:
-                    print ('Cloudfront invalidation id {}'.format(invalidationId))
+                try:
+                    distributionId = config.get('cloud_front', 'distribution_id')
+                    response = cloudfront.create_invalidation(DistributionId=distributionId, InvalidationBatch=batch)
+                    invalidationId = response['Invalidation']['Id']
+                    if waitForCache:
+                        print ('Waiting for cloudfront invalidation')
+                        waitForCloudfront.waitForInvalidation(cloudfront, distributionId, invalidationId)
+                    else:
+                        print ('Cloudfront invalidation id {}'.format(invalidationId))
+                except NoSectionError:
+                    print ('No cloudfront config found')
+                except NoOptionError:
+                    print ('Failed to find CloudFront distribution_id')
     # second level is bucket
     # thrid level is content
